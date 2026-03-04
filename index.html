@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hiragana Quest - Graduation Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+    <style>
+        :root {
+            --primary: #cc9302; --primary-shadow: #58a700;
+            --secondary: #1cb0f6; --secondary-shadow: #1899d6;
+            --incorrect: #ff4b4b; --incorrect-shadow: #ea2b2b;
+            --gold: #ffc800; --gold-shadow: #e5b400;
+            --text-dark: #4b4b4b; --bg-color: #0efa98;
+            --border-light: #e5e5e5; --streak-color: #ff9600;
+        }
+
+        body { font-family: 'Nunito', sans-serif; margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-dark); display: flex; justify-content: center; min-height: 100vh; overflow-x: hidden; }
+        .app-container { width: 100%; max-width: 600px; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; position: relative; }
+
+        /* --- ANIMATIONS --- */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 70% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+        
+        .screen { display: none; flex-direction: column; height: 100%; animation: fadeIn 0.4s ease-out forwards; }
+        .active-screen { display: flex; }
+        .shake-err { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        .pop { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        /* --- UI ELEMENTS --- */
+        .header { display: flex; align-items: center; margin: 20px 0 10px 0; }
+        .progress-bar { flex-grow: 1; height: 16px; background: var(--border-light); border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .lesson-header { text-align: center; margin-bottom: 20px; }
+        .lesson-header h2 { margin: 0; font-size: 28px; transition: 0.3s; }
+        .instruction { color: #afafaf; font-size: 16px; margin-top: 5px; font-weight: bold; }
+
+        /* Name Input & Menu */
+        #menu-screen { text-align: center; align-items: center; justify-content: center; height: 80vh; }
+        .name-input-wrapper { display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 300px; margin: 20px auto; }
+        input[type="text"] { padding: 15px; border: 2px solid var(--border-light); border-radius: 15px; font-size: 18px; font-family: 'Nunito', sans-serif; text-align: center; outline: none; transition: border-color 0.2s; }
+        input[type="text"]:focus { border-color: var(--secondary); }
+        .streak-display { font-size: 24px; font-weight: bold; color: var(--streak-color); margin-bottom: 20px; }
+        .day-display { font-size: 32px; font-weight: bold; margin-bottom: 10px; }
+        .subtitle { color: #afafaf; margin-bottom: 40px; font-size: 14px; }
+        .welcome-text { font-size: 20px; color: var(--secondary); font-weight: bold; margin-bottom: -10px; }
+
+        /* Drawing */
+        .drawing-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+        #character-target-div { border: 3px dashed var(--border-light); border-radius: 20px; background-color: #f9f9f9; width: 250px; height: 250px; cursor: crosshair; box-shadow: 0 4px 0 var(--border-light); touch-action: none; }
+        
+        .controls { display: flex; gap: 15px; margin-top: 20px; }
+        .btn { background: rgb(215, 218, 215); color: var(--text-dark); border: 2px solid var(--border-light); border-bottom-width: 4px; border-radius: 15px; padding: 12px 20px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.1s; }
+        .btn:active { border-bottom-width: 2px; transform: translateY(2px); }
+        .btn-primary { background: var(--secondary); color: white; border-color: var(--secondary-shadow); }
+        .btn-gold { background: var(--gold); color: white; border-color: var(--gold-shadow); }
+
+        /* Transition Screen */
+        #transition-screen { align-items: center; justify-content: center; height: 70vh; text-align: center; }
+        .transition-icon { font-size: 80px; margin-bottom: 20px; }
+
+        /* Quiz */
+        .big-char { font-size: 100px; font-weight: bold; color: var(--text-dark); margin-bottom: 30px; line-height: 1; text-align: center;}
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; margin-bottom: 100px; }
+        .option-btn { background: white; border: 2px solid var(--border-light); border-bottom-width: 4px; border-radius: 15px; padding: 20px; font-size: 20px; font-weight: bold; color: var(--text-dark); cursor: pointer; transition: all 0.2s; text-align: center; }
+        .option-btn:active { border-bottom-width: 2px; transform: translateY(2px); }
+        .option-btn.disabled { pointer-events: none; opacity: 0.7; }
+
+        /* Bottom Bar */
+        .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; padding: 20px; box-sizing: border-box; border-top: 2px solid var(--border-light); background: white; display: flex; justify-content: space-between; align-items: center; z-index: 10; transition: background-color 0.3s; }
+        .feedback { font-size: 20px; font-weight: bold; display: none; }
+        .feedback.correct { color: var(--primary-shadow); display: block; }
+        .feedback.incorrect { color: var(--incorrect-shadow); display: block; }
+        .action-btn { background: var(--primary); color: white; border: none; border-bottom: 4px solid var(--primary-shadow); border-radius: 15px; padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; text-transform: uppercase; width: 100%; max-width: 200px; display: none; transition: 0.1s; }
+        .action-btn:active { border-bottom-width: 0; transform: translateY(4px); }
+        .action-btn.incorrect-btn { background: var(--incorrect); border-bottom-color: var(--incorrect-shadow); }
+
+        /* Certificate Screen */
+        #certificate-screen { align-items: center; justify-content: center; padding: 20px 0; }
+        .cert-container { border: 10px solid var(--gold); border-radius: 10px; padding: 40px 20px; text-align: center; background: #fffdf5; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 500px; box-sizing: border-box; position: relative; }
+        .cert-title { font-size: 32px; color: var(--gold-shadow); margin-bottom: 10px; font-family: 'Georgia', serif; text-transform: uppercase; letter-spacing: 2px; }
+        .cert-body { font-size: 18px; margin: 20px 0; color: #555; }
+        .cert-name { font-size: 40px; color: var(--text-dark); font-weight: bold; margin: 20px 0; border-bottom: 2px solid var(--border-light); padding-bottom: 10px; font-family: 'Georgia', serif; }
+        .cert-date { font-size: 14px; color: #888; margin-top: 30px; }
+        .seal { font-size: 60px; margin-top: 20px; }
+
+        /* Print Styles */
+        @media print {
+            body { background: white; }
+            .app-container { max-width: 100%; padding: 0; }
+            .btn-primary, .bottom-bar, #reset-btn { display: none !important; }
+            .cert-container { border: 15px solid var(--gold); box-shadow: none; max-width: 800px; margin: 0 auto; padding: 80px 40px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div id="menu-screen" class="screen active-screen">
+        <div id="registration-view" style="display:none; width: 100%;">
+            <h2>Welcome to Hiragana Quest!</h2>
+            <p class="subtitle" style="margin-bottom: 10px;">Before we begin, what should we print on your certificate?</p>
+            <div class="name-input-wrapper pop">
+                <input type="text" id="user-name" placeholder="Enter your full name" autocomplete="off">
+                <button class="action-btn" style="display:block; max-width:100%;" onclick="saveName()">Begin Journey</button>
+            </div>
+        </div>
+
+        <div id="dashboard-view" style="display:none; width: 100%;">
+            <div class="welcome-text pop" id="welcome-msg">Welcome back!</div>
+            <div class="streak-display pop">🔥 Streak: <span id="streak-count">0</span> Days</div>
+            <div class="day-display" id="day-display-text">Bootcamp: Day 1</div>
+            <div class="subtitle" id="chars-today">Loading today's characters...</div>
+            <button class="action-btn pop" id="main-start-btn" style="display: block; margin: 0 auto;" onclick="startLearningPhase()">Start Lesson</button>
+            <p id="reset-btn" style="margin-top: 30px; color: #ff4b4b; cursor: pointer; font-size: 14px; font-weight: bold;" onclick="resetProgress()">Reset Entire Bootcamp</p>
+        </div>
+    </div>
+
+    <div id="trace-screen" class="screen">
+        <div class="header"><div class="progress-bar"><div class="progress-fill" id="trace-progress"></div></div></div>
+        <div class="lesson-header">
+            <h2 id="trace-title">Loading...</h2>
+            <div class="instruction" id="trace-inst">Watch the stroke order!</div>
+        </div>
+        <div class="drawing-section pop">
+            <div id="character-target-div"></div>
+            <div class="controls">
+                <button class="btn" onclick="playAudioTrace()">🔊 Audio</button>
+                <button class="btn" onclick="replayAnimation()">🔄 Animate</button>
+                <button class="btn btn-primary" id="start-draw-btn" onclick="startDrawTrace()">✍️ Let me try!</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="transition-screen" class="screen">
+        <div class="transition-icon" id="trans-icon">🧠</div>
+        <h2 id="trans-title">Learning Complete!</h2>
+        <p class="subtitle" id="trans-sub">Now it's time to see what you remember. We've shuffled the characters.</p>
+        <button class="action-btn" id="trans-btn" style="display: block; margin: 0 auto;" onclick="startQuizPhase()">Start the Quiz!</button>
+    </div>
+
+    <div id="quiz-screen" class="screen">
+        <div class="header"><div class="progress-bar"><div class="progress-fill" id="quiz-progress"></div></div></div>
+        <div class="lesson-header">
+            <h2 id="quiz-main-title">What sound is this?</h2>
+            <div class="instruction">Choose the correct Romaji.</div>
+        </div>
+        <div class="big-char pop" id="quiz-char">あ</div>
+        <div class="options-grid" id="options"></div>
+    </div>
+
+    <div id="certificate-screen" class="screen">
+        <div class="cert-container pop">
+            <div class="cert-title">Certificate of Mastery</div>
+            <div class="cert-body">This is to officially certify that</div>
+            <div class="cert-name" id="cert-display-name">Student Name</div>
+            <div class="cert-body">has successfully completed the 6-Day Bootcamp and passed the Final Exam, demonstrating total mastery of all 71 Hiragana characters.</div>
+            <div class="seal">💮</div>
+            <div class="cert-date" id="cert-date">Awarded on: [Date]</div>
+        </div>
+        <button class="btn btn-primary pop" style="margin-top: 30px; font-size: 18px; padding: 15px 30px;" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        <p style="margin-top: 20px; color: #888; cursor: pointer; text-decoration: underline;" onclick="resetProgress()">Start Over</p>
+    </div>
+
+    <div class="bottom-bar" id="bottom-bar" style="display: none;">
+        <div id="feedback-text" class="feedback">Perfect!</div>
+        <button class="action-btn" id="next-btn" onclick="handleNextStep()">Continue</button>
+    </div>
+</div>
+
+<script>
+    // Full 71 Character List 
+    const allChars = [
+        {char: 'あ', romaji: 'a'}, {char: 'い', romaji: 'i'}, {char: 'う', romaji: 'u'}, {char: 'え', romaji: 'e'}, {char: 'お', romaji: 'o'},
+        {char: 'か', romaji: 'ka'}, {char: 'き', romaji: 'ki'}, {char: 'く', romaji: 'ku'}, {char: 'け', romaji: 'ke'}, {char: 'こ', romaji: 'ko'},
+        {char: 'さ', romaji: 'sa'}, {char: 'し', romaji: 'shi'}, {char: 'す', romaji: 'su'}, {char: 'せ', romaji: 'se'}, {char: 'そ', romaji: 'so'},
+        {char: 'た', romaji: 'ta'}, {char: 'ち', romaji: 'chi'}, {char: 'つ', romaji: 'tsu'}, {char: 'て', romaji: 'te'}, {char: 'と', romaji: 'to'},
+        {char: 'な', romaji: 'na'}, {char: 'に', romaji: 'ni'}, {char: 'ぬ', romaji: 'nu'}, {char: 'ね', romaji: 'ne'}, {char: 'の', romaji: 'no'},
+        {char: 'は', romaji: 'ha'}, {char: 'ひ', romaji: 'hi'}, {char: 'ふ', romaji: 'fu'}, {char: 'へ', romaji: 'he'}, {char: 'ほ', romaji: 'ho'},
+        {char: 'ま', romaji: 'ma'}, {char: 'み', romaji: 'mi'}, {char: 'む', romaji: 'mu'}, {char: 'め', romaji: 'me'}, {char: 'も', romaji: 'mo'},
+        {char: 'や', romaji: 'ya'}, {char: 'ゆ', romaji: 'yu'}, {char: 'よ', romaji: 'yo'},
+        {char: 'ら', romaji: 'ra'}, {char: 'り', romaji: 'ri'}, {char: 'る', romaji: 'ru'}, {char: 'れ', romaji: 're'}, {char: 'ろ', romaji: 'ro'},
+        {char: 'わ', romaji: 'wa'}, {char: 'を', romaji: 'wo'}, {char: 'ん', romaji: 'n'},
+        {char: 'が', romaji: 'ga'}, {char: 'ぎ', romaji: 'gi'}, {char: 'ぐ', romaji: 'gu'}, {char: 'げ', romaji: 'ge'}, {char: 'ご', romaji: 'go'},
+        {char: 'ざ', romaji: 'za'}, {char: 'じ', romaji: 'ji'}, {char: 'ず', romaji: 'zu'}, {char: 'ぜ', romaji: 'ze'}, {char: 'ぞ', romaji: 'zo'},
+        {char: 'だ', romaji: 'da'}, {char: 'ぢ', romaji: 'ji'}, {char: 'づ', romaji: 'zu'}, {char: 'で', romaji: 'de'}, {char: 'ど', romaji: 'do'},
+        {char: 'ば', romaji: 'ba'}, {char: 'び', romaji: 'bi'}, {char: 'ぶ', romaji: 'bu'}, {char: 'べ', romaji: 'be'}, {char: 'ぼ', romaji: 'bo'},
+        {char: 'ぱ', romaji: 'pa'}, {char: 'ぴ', romaji: 'pi'}, {char: 'ぷ', romaji: 'pu'}, {char: 'ぺ', romaji: 'pe'}, {char: 'ぽ', romaji: 'po'}
+    ];
+
+    const schedule = {
+        1: [...allChars.slice(0, 10), ...allChars.slice(46, 51)],
+        2: [...allChars.slice(10, 20), ...allChars.slice(51, 56)],
+        3: [...allChars.slice(20, 25), ...allChars.slice(56, 61)],
+        4: [...allChars.slice(25, 30), ...allChars.slice(61, 71)],
+        5: [...allChars.slice(30, 38)], 
+        6: [...allChars.slice(38, 46)] 
+    };
+
+    let userName = localStorage.getItem('hiraNameV9') || "";
+    let currentDay = parseInt(localStorage.getItem('hiraDayV9')) || 1;
+    let streak = parseInt(localStorage.getItem('hiraStreakV9')) || 0;
+    let lastPlayed = localStorage.getItem('hiraLastV9');
+    
+    let learnQueue = []; let quizQueue = []; let retestQueue = [];
+    let currentIdx = 0; let activeState = 'menu'; let writer = null;
+
+    // --- NAVIGATION ---
+    function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen')); document.getElementById(id).classList.add('active-screen'); }
+    function playAudio(char) { let utt = new SpeechSynthesisUtterance(char); utt.lang = 'ja-JP'; utt.rate = 0.8; window.speechSynthesis.speak(utt); }
+
+    // --- MENU & REGISTRATION ---
+    function initMenu() {
+        showScreen('menu-screen');
+        document.getElementById('bottom-bar').style.display = 'none';
+        
+        if (!userName) {
+            document.getElementById('registration-view').style.display = 'block';
+            document.getElementById('dashboard-view').style.display = 'none';
+            return;
+        }
+
+        document.getElementById('registration-view').style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'block';
+        document.getElementById('welcome-msg').innerText = `Welcome back, ${userName.split(' ')[0]}!`;
+
+        // Streak logic
+        const today = new Date().toDateString();
+        if (lastPlayed) {
+            const diffDays = Math.ceil(Math.abs(new Date(today) - new Date(lastPlayed)) / (1000 * 60 * 60 * 24)); 
+            if (diffDays > 1) streak = 0; 
+        }
+        document.getElementById('streak-count').innerText = streak;
+
+        // UI Routing based on Day
+        const startBtn = document.getElementById('main-start-btn');
+        if (currentDay <= 6) {
+            document.getElementById('day-display-text').innerText = `Bootcamp: Day ${currentDay} of 6`;
+            document.getElementById('chars-today').innerText = `Today's Lesson (${schedule[currentDay].length} chars): ${schedule[currentDay].map(d=>d.char).join(', ')}`;
+            startBtn.innerText = "Start Lesson";
+            startBtn.className = "action-btn pop";
+        } else if (currentDay === 7) {
+            document.getElementById('day-display-text').innerText = `Final Boss: Day 7`;
+            document.getElementById('day-display-text').style.color = 'var(--gold-shadow)';
+            document.getElementById('chars-today').innerText = "The ultimate trial. All 71 characters, completely shuffled. You must get 100% to graduate.";
+            startBtn.innerText = "Start Final Exam";
+            startBtn.className = "action-btn pop btn-gold";
+        } else {
+            // Day 8+ (Graduated)
+            showCertificate();
+        }
+    }
+
+    function saveName() {
+        const input = document.getElementById('user-name').value.trim();
+        if(input.length < 2) return alert("Please enter a valid name.");
+        userName = input;
+        localStorage.setItem('hiraNameV9', userName);
+        initMenu();
+    }
+
+    // --- APP LOGIC ---
+    function startLearningPhase() {
+        if (currentDay === 7) {
+            // Jump straight to the massive quiz!
+            setupTransitionToExam();
+            return;
+        }
+
+        learnQueue = [...schedule[currentDay]];
+        currentIdx = 0; activeState = 'trace'; showScreen('trace-screen');
+        document.getElementById('bottom-bar').style.display = 'none';
+
+        if (!writer) {
+            writer = HanziWriter.create('character-target-div', learnQueue[0].char, {
+                width: 250, height: 250, padding: 10, strokeAnimationSpeed: 1.5, delayBetweenStrokes: 200, showHintAfterMisses: 2,
+                highlightOnComplete: true, highlightColor: '#58cc02', drawingColor: '#4b4b4b', drawingWidth: 15,
+                charDataLoader: (c, onL, onE) => fetch(`https://cdn.jsdelivr.net/gh/ailectra/kana-json@v0.0.1/data/${c}.json`).then(r=>r.json()).then(onL).catch(onE)
+            });
+        }
+        loadTraceChar();
+    }
+
+    // -- TRACE (Days 1-6 only) --
+    function loadTraceChar() {
+        if (currentIdx >= learnQueue.length) {
+            activeState = 'transition'; showScreen('transition-screen'); document.getElementById('bottom-bar').style.display = 'none';
+            document.getElementById('trans-icon').innerText = '🧠'; document.getElementById('trans-title').innerText = 'Learning Complete!';
+            document.getElementById('trans-sub').innerText = "Now it's time to see what you remember. We've shuffled the characters.";
+            return;
+        }
+
+        const data = learnQueue[currentIdx];
+        document.getElementById('trace-title').innerText = `Learn: ${data.romaji} (${data.char})`;
+        document.getElementById('trace-progress').style.width = `${(currentIdx / learnQueue.length) * 100}%`;
+        document.getElementById('start-draw-btn').style.display = 'block';
+        document.getElementById('trace-inst').innerText = "Watch the stroke order!"; document.getElementById('trace-inst').style.color = '#afafaf';
+
+        writer.setCharacter(data.char).then(() => {
+            playAudioTrace(); writer.hideCharacter(); writer.showOutline();
+            setTimeout(() => { writer.hideCharacter(); writer.animateCharacter(); }, 500);
+        }).catch(()=> document.getElementById('trace-inst').innerText = "Data missing. Click 'Let me try' to skip.");
+    }
+
+    function playAudioTrace() { playAudio(learnQueue[currentIdx].char); }
+    function replayAnimation() { writer.hideCharacter(); writer.animateCharacter(); }
+
+    function startDrawTrace() {
+        document.getElementById('trace-inst').innerText = "Your turn! Draw it."; document.getElementById('trace-inst').style.color = '#1cb0f6';
+        document.getElementById('start-draw-btn').style.display = 'none';
+        
+        writer.quiz({
+            onMistake: () => { document.getElementById('trace-inst').innerText = "Oops! Check order/direction."; document.getElementById('trace-inst').style.color = '#ff4b4b'; },
+            onCorrectStroke: () => { document.getElementById('trace-inst').innerText = "Good..."; document.getElementById('trace-inst').style.color = '#1cb0f6'; },
+            onComplete: () => {
+                document.getElementById('trace-inst').innerText = "Perfect! 🌟 Moving to next..."; document.getElementById('trace-inst').style.color = '#58cc02';
+                playAudioTrace(); setTimeout(() => { currentIdx++; loadTraceChar(); }, 1000);
+            }
+        });
+    }
+
+    // -- EXAM TRANSITION (Day 7) --
+    function setupTransitionToExam() {
+        activeState = 'transition'; showScreen('transition-screen'); document.getElementById('bottom-bar').style.display = 'none';
+        document.getElementById('trans-icon').innerText = '⚔️'; 
+        document.getElementById('trans-title').innerText = 'The Final Exam';
+        document.getElementById('trans-title').style.color = 'var(--gold-shadow)';
+        document.getElementById('trans-sub').innerText = "This is it. 71 characters. Complete this without giving up to earn your certificate. Good luck.";
+        document.getElementById('trans-btn').innerText = "Begin the Exam";
+        learnQueue = [...allChars]; // Load everything into the queue for the quiz phase
+    }
+
+    // -- QUIZ & RETEST --
+    function startQuizPhase() {
+        quizQueue = [...learnQueue].sort(() => Math.random() - 0.5);
+        retestQueue = []; currentIdx = 0; activeState = 'quiz';
+        
+        if(currentDay === 7) document.getElementById('quiz-main-title').innerText = "Final Exam: 71 Characters";
+        else document.getElementById('quiz-main-title').innerText = "What sound is this?";
+
+        showScreen('quiz-screen'); loadQuizChar();
+    }
+
+    function loadQuizChar() {
+        if (currentIdx >= quizQueue.length) {
+            if (retestQueue.length > 0) {
+                alert(`You missed ${retestQueue.length} character(s). Adding them back to the queue!`);
+                quizQueue = [...retestQueue].sort(() => Math.random() - 0.5); retestQueue = []; currentIdx = 0;
+            } else {
+                return finishDay();
+            }
+        }
+
+        const data = quizQueue[currentIdx];
+        document.getElementById('quiz-progress').style.width = `${(currentIdx / quizQueue.length) * 100}%`;
+        
+        document.getElementById('bottom-bar').style.display = 'none'; document.getElementById('bottom-bar').style.backgroundColor = 'white';
+        const charEl = document.getElementById('quiz-char'); charEl.innerText = data.char;
+        charEl.classList.remove('pop'); void charEl.offsetWidth; charEl.classList.add('pop');
+        
+        playAudio(data.char);
+
+        let opts = [data.romaji];
+        while (opts.length < 4) {
+            let rnd = allChars[Math.floor(Math.random() * allChars.length)].romaji;
+            if (!opts.includes(rnd)) opts.push(rnd);
+        }
+        opts.sort(() => Math.random() - 0.5);
+
+        const grid = document.getElementById('options'); grid.innerHTML = '';
+        opts.forEach(opt => {
+            const btn = document.createElement('button'); btn.className = 'option-btn'; btn.innerText = opt;
+            btn.onclick = () => checkAnswer(opt, data.romaji, btn, data); grid.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(sel, correct, btn, charData) {
+        document.querySelectorAll('.option-btn').forEach(b => b.classList.add('disabled'));
+        const bBar = document.getElementById('bottom-bar'); const fbText = document.getElementById('feedback-text'); const nxtBtn = document.getElementById('next-btn');
+        bBar.style.display = 'flex'; nxtBtn.style.display = 'block';
+
+        if (sel === correct) {
+            btn.style.borderColor = '#58cc02'; btn.style.background = '#d7ffb8'; btn.classList.add('pop');
+            bBar.style.backgroundColor = '#d7ffb8'; fbText.className = 'feedback correct'; fbText.innerText = 'Correct!'; nxtBtn.className = 'action-btn';
+        } else {
+            retestQueue.push(charData);
+            document.getElementById('quiz-screen').classList.add('shake-err'); setTimeout(() => document.getElementById('quiz-screen').classList.remove('shake-err'), 500);
+            btn.style.borderColor = '#ff4b4b'; btn.style.background = '#ffdfe0'; bBar.style.backgroundColor = '#ffdfe0';
+            fbText.className = 'feedback incorrect'; fbText.innerHTML = `Incorrect. Answer: <strong>${correct}</strong>`; nxtBtn.className = 'action-btn incorrect-btn';
+            document.querySelectorAll('.option-btn').forEach(b => { if(b.innerText === correct) { b.style.borderColor = '#58cc02'; b.style.borderWidth = '4px'; } });
+        }
+    }
+
+    function handleNextStep() { if (activeState === 'quiz') { currentIdx++; loadQuizChar(); } }
+
+    // --- FINISH & CERTIFICATE ---
+    function finishDay() {
+        const today = new Date().toDateString();
+        if (lastPlayed !== today) { streak++; localStorage.setItem('hiraStreakV9', streak); localStorage.setItem('hiraLastV9', today); }
+        
+        if (currentDay === 7) {
+            // Passed Exam! Save certificate date
+            localStorage.setItem('hiraCertDate', new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }));
+            currentDay++; localStorage.setItem('hiraDayV9', currentDay);
+            showCertificate();
+        } else {
+            // Normal day finish
+            currentDay++; localStorage.setItem('hiraDayV9', currentDay);
+            alert("🎉 BOOTCAMP DAY COMPLETE! Incredible job.");
+            initMenu();
+        }
+    }
+
+    function showCertificate() {
+        showScreen('certificate-screen');
+        document.getElementById('bottom-bar').style.display = 'none';
+        document.getElementById('cert-display-name').innerText = userName;
+        document.getElementById('cert-date').innerText = `Awarded on: ${localStorage.getItem('hiraCertDate') || new Date().toLocaleDateString()}`;
+    }
+
+    function resetProgress() {
+        if(confirm("Are you sure you want to completely erase your progress and certificate? You will start over from Day 1.")) {
+            localStorage.clear();
+            userName = ""; currentDay = 1; streak = 0; lastPlayed = null;
+            document.getElementById('user-name').value = "";
+            initMenu();
+        }
+    }
+
+    window.onload = initMenu;
+</script>
+
+</body>
+</html>
